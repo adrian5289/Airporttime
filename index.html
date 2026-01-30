@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>機場出發計算器</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
+        
+        <!-- Header -->
+        <div class="bg-blue-600 p-6 text-white text-center">
+            <h1 class="text-2xl font-bold flex items-center justify-center gap-2">
+                <i data-lucide="plane" class="w-6 h-6"></i>
+                機場出發計算器
+            </h1>
+            <p class="text-blue-100 text-sm mt-2">輸入航班時間，自動計算行程</p>
+        </div>
+
+        <div class="p-6 space-y-6">
+            <!-- Input Section -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 text-center">
+                    班機幾點起飛？ (24小時制)
+                </label>
+                <div class="relative">
+                    <input
+                        type="tel"
+                        id="timeInput"
+                        placeholder="2235"
+                        maxlength="4"
+                        class="block w-full text-center text-4xl font-bold tracking-widest p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 outline-none transition-colors placeholder-gray-300 text-gray-800"
+                    />
+                </div>
+                <div id="errorMsg" class="hidden flex items-center justify-center text-red-500 text-sm gap-1 mt-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                    <span>請輸入完整的時間，例如 2235</span>
+                </div>
+                <p class="text-center text-xs text-gray-400">無需輸入冒號，直接打數字</p>
+            </div>
+
+            <!-- Button -->
+            <button
+                onclick="calculate()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl text-lg transition-colors shadow-lg active:scale-95 transform duration-100"
+            >
+                計算時間
+            </button>
+
+            <!-- Results Section (Hidden by default) -->
+            <div id="resultSection" class="hidden space-y-4">
+                
+                <!-- Main Result: Departure Time -->
+                <div class="bg-green-50 border border-green-100 rounded-xl p-5 text-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-green-500"></div>
+                    <p class="text-green-800 text-sm font-medium mb-1 flex items-center justify-center gap-1">
+                        <i data-lucide="car" class="w-4 h-4"></i> 建議出門時間
+                    </p>
+                    <p id="departureTimeDisplay" class="text-5xl font-black text-green-600 tracking-tight">
+                        --:--
+                    </p>
+                    <p class="text-xs text-green-700 mt-2 opacity-80">
+                        (已預留 15 分鐘鬆動位)
+                    </p>
+                </div>
+
+                <!-- Secondary Result: 1.5 Hours Before -->
+                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-blue-100 p-2 rounded-full text-blue-600">
+                            <i data-lucide="clock" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">起飛前 1.5 小時</p>
+                            <p class="text-xs text-gray-400">通常櫃檯開始多人</p>
+                        </div>
+                    </div>
+                    <div id="checkInTimeDisplay" class="text-2xl font-bold text-blue-700">
+                        --:--
+                    </div>
+                </div>
+
+                <!-- Details -->
+                <div class="border-t border-gray-100 pt-4">
+                    <div class="flex justify-between items-center text-sm text-gray-500 mb-2">
+                        <span>航班時間</span>
+                        <span id="flightTimeDisplay" class="font-medium text-gray-900">--:--</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm text-gray-500">
+                        <span>總共提前</span>
+                        <span class="font-medium text-gray-900">3小時 05分鐘</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // Input handling
+        const input = document.getElementById('timeInput');
+        input.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        function calculate() {
+            const val = input.value;
+            const errorDiv = document.getElementById('errorMsg');
+            const resultDiv = document.getElementById('resultSection');
+
+            if (val.length < 3) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('span').innerText = '請輸入完整的時間，例如 2235';
+                resultDiv.classList.add('hidden');
+                return;
+            }
+
+            const timeStr = val.padStart(4, '0');
+            const hours = parseInt(timeStr.substring(0, 2));
+            const minutes = parseInt(timeStr.substring(2, 4));
+
+            if (hours > 23 || minutes > 59) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('span').innerText = '時間格式錯誤 (00-23 小時, 00-59 分鐘)';
+                resultDiv.classList.add('hidden');
+                return;
+            }
+
+            errorDiv.classList.add('hidden');
+
+            // Calculation Logic
+            const flightDate = new Date();
+            flightDate.setHours(hours, minutes, 0, 0);
+
+            // 1. Departure Time (Flight - 185 mins)
+            const departureDate = new Date(flightDate.getTime() - 185 * 60000);
+
+            // 2. 1.5 Hours Before (Flight - 90 mins)
+            const onePointFiveDate = new Date(flightDate.getTime() - 90 * 60000);
+
+            // Format Time Function
+            const format = (date) => {
+                return date.toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+            };
+
+            // Update UI
+            document.getElementById('flightTimeDisplay').innerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            document.getElementById('departureTimeDisplay').innerText = format(departureDate);
+            document.getElementById('checkInTimeDisplay').innerText = format(onePointFiveDate);
+
+            resultDiv.classList.remove('hidden');
+            resultDiv.classList.add('fade-in');
+            
+            // Re-render icons for any new content (though not strictly needed here, good practice)
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
