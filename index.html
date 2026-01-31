@@ -3,174 +3,263 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>機場出發計算器</title>
-    <!-- 引入 Tailwind CSS -->
+    <title>Airport Time App</title>
+    
+    <!-- 引入 React 和 Tailwind -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+<body class="bg-gray-50">
 
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
-        
-        <!-- Header -->
-        <div class="bg-blue-600 p-6 text-white text-center">
-            <h1 class="text-2xl font-bold flex items-center justify-center gap-2">
-                <i data-lucide="plane" class="w-6 h-6"></i>
-                機場出發計算器
-            </h1>
-            <p class="text-blue-100 text-sm mt-2">輸入航班時間，自動計算行程</p>
-        </div>
+    <div id="root"></div>
 
-        <div class="p-6 space-y-6">
-            <!-- Input Section -->
-            <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700 text-center">
-                    班機幾點起飛？ (24小時制)
-                </label>
-                <div class="relative">
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 簡單圖示組件 (代替 Lucide) ---
+        const Icons = {
+            Plane: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M13 2l9 10-9 10"/><path d="M2 12l5-5m0 10l-5-5"/></svg>, // 簡化版飛機
+            Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            ArrowLeft: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
+            CheckCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            XCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>,
+            AlertTriangle: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        };
+
+        // --- 共用組件 ---
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-auto ${className}`}>
+                {children}
+            </div>
+        );
+
+        const Button = ({ onClick, children, variant = "primary", className = "" }) => {
+            const baseStyle = "w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center gap-2 active:scale-95";
+            const variants = {
+                primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200",
+                secondary: "bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-200",
+                outline: "border-2 border-gray-200 text-gray-600 hover:bg-gray-50",
+                danger: "bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200"
+            };
+            return (
+                <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>
+                    {children}
+                </button>
+            );
+        };
+
+        const TimeInput = ({ value, onChange, placeholder, colorClass = "focus:border-blue-500" }) => {
+            const inputRef = useRef(null);
+            useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+            const handleChange = (e) => {
+                let raw = e.target.value.replace(/\D/g, '');
+                if (raw.length > 4) raw = raw.slice(0, 4);
+                let formatted = raw;
+                if (raw.length >= 3) formatted = raw.slice(0, 2) + ':' + raw.slice(2);
+                onChange(formatted);
+            };
+            return (
+                <div className="relative">
                     <input
+                        ref={inputRef}
                         type="tel"
-                        id="timeInput"
-                        placeholder="2235"
-                        maxlength="4"
-                        class="block w-full text-center text-4xl font-bold tracking-widest p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 outline-none transition-colors placeholder-gray-300 text-gray-800"
+                        inputMode="numeric"
+                        value={value}
+                        onChange={handleChange}
+                        placeholder={placeholder}
+                        className={`w-full p-4 text-3xl font-bold text-center border-2 border-gray-200 rounded-xl outline-none transition-colors ${colorClass} placeholder-gray-300`}
+                        maxLength={5}
                     />
+                    {value && (
+                        <button 
+                            onClick={() => { onChange(''); inputRef.current.focus(); }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 p-2"
+                        >
+                            <span className="text-xs font-bold">清除</span>
+                        </button>
+                    )}
                 </div>
-                <div id="errorMsg" class="hidden flex items-center justify-center text-red-500 text-sm gap-1 mt-2">
-                    <i data-lucide="alert-circle" class="w-4 h-4"></i>
-                    <span>請輸入完整的時間，例如 2235</span>
-                </div>
-                <p class="text-center text-xs text-gray-400">無需輸入冒號，直接打數字</p>
-            </div>
+            );
+        };
 
-            <!-- Button -->
-            <button
-                onclick="calculate()"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl text-lg transition-colors shadow-lg active:scale-95 transform duration-100"
-            >
-                計算時間
-            </button>
+        // --- 模式一：逆向推算 (已更新：加多 15mins Buffer) ---
+        const ModeCalculateDeparture = ({ onBack }) => {
+            const [flightTime, setFlightTime] = useState('');
+            const [result, setResult] = useState(null);
 
-            <!-- Results Section (Hidden by default) -->
-            <div id="resultSection" class="hidden space-y-4">
-                
-                <!-- Main Result: Departure Time -->
-                <div class="bg-green-50 border border-green-100 rounded-xl p-5 text-center relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-full h-1 bg-green-500"></div>
-                    <p class="text-green-800 text-sm font-medium mb-1 flex items-center justify-center gap-1">
-                        <i data-lucide="car" class="w-4 h-4"></i> 建議出門時間
-                    </p>
-                    <p id="departureTimeDisplay" class="text-5xl font-black text-green-600 tracking-tight">
-                        --:--
-                    </p>
-                    <p class="text-xs text-green-700 mt-2 opacity-80">
-                        (已預留 15 分鐘鬆動位)
-                    </p>
-                </div>
+            const calculateTime = () => {
+                if (!flightTime || flightTime.length < 4) return;
+                let timeStr = flightTime;
+                if (!timeStr.includes(':') && timeStr.length === 4) timeStr = timeStr.slice(0, 2) + ':' + timeStr.slice(2);
 
-                <!-- Secondary Result: 1.5 Hours Before -->
-                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex justify-between items-center">
-                    <div class="flex items-center gap-3">
-                        <div class="bg-blue-100 p-2 rounded-full text-blue-600">
-                            <i data-lucide="clock" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">起飛前 1.5 小時</p>
-                            <p class="text-xs text-gray-400">通常櫃檯開始多人</p>
-                        </div>
-                    </div>
-                    <div id="checkInTimeDisplay" class="text-2xl font-bold text-blue-700">
-                        --:--
-                    </div>
-                </div>
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                if (hours > 23 || minutes > 59) { alert("時間格式唔岩喎"); return; }
 
-                <!-- Details -->
-                <div class="border-t border-gray-100 pt-4">
-                    <div class="flex justify-between items-center text-sm text-gray-500 mb-2">
-                        <span>航班時間</span>
-                        <span id="flightTimeDisplay" class="font-medium text-gray-900">--:--</span>
-                    </div>
-                    <div class="flex justify-between items-center text-sm text-gray-500">
-                        <span>總共提前</span>
-                        <span class="font-medium text-gray-900">3小時 05分鐘</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                const flightDate = new Date();
+                flightDate.setHours(hours, minutes, 0, 0);
+                if (flightDate < new Date()) flightDate.setDate(flightDate.getDate() + 1);
 
-    <script>
-        // Initialize Icons
-        lucide.createIcons();
+                // *** 邏輯修改區 ***
+                const travelTimeMinutes = 90; // 1.5 hrs
+                const checkInMinutes = 80;    // 1 hr 20 mins
+                const bufferMinutes = 15;     // 額外 15 mins
+                const totalBufferMinutes = travelTimeMinutes + checkInMinutes + bufferMinutes;
 
-        // Input handling
-        const input = document.getElementById('timeInput');
-        input.addEventListener('input', function(e) {
-            this.value = this.value.replace(/[^0-9]/g, '');
-        });
+                const leaveTime = new Date(flightDate.getTime() - (totalBufferMinutes * 60 * 1000));
+                const airportTime = new Date(leaveTime.getTime() + (travelTimeMinutes * 60 * 1000));
 
-        function calculate() {
-            const val = input.value;
-            const errorDiv = document.getElementById('errorMsg');
-            const resultDiv = document.getElementById('resultSection');
-
-            if (val.length < 3) {
-                errorDiv.classList.remove('hidden');
-                errorDiv.querySelector('span').innerText = '請輸入完整的時間，例如 2235';
-                resultDiv.classList.add('hidden');
-                return;
-            }
-
-            const timeStr = val.padStart(4, '0');
-            const hours = parseInt(timeStr.substring(0, 2));
-            const minutes = parseInt(timeStr.substring(2, 4));
-
-            if (hours > 23 || minutes > 59) {
-                errorDiv.classList.remove('hidden');
-                errorDiv.querySelector('span').innerText = '時間格式錯誤 (00-23 小時, 00-59 分鐘)';
-                resultDiv.classList.add('hidden');
-                return;
-            }
-
-            errorDiv.classList.add('hidden');
-
-            // Calculation Logic
-            const flightDate = new Date();
-            flightDate.setHours(hours, minutes, 0, 0);
-
-            // 1. Departure Time (Flight - 185 mins)
-            const departureDate = new Date(flightDate.getTime() - 185 * 60000);
-
-            // 2. 1.5 Hours Before (Flight - 90 mins)
-            const onePointFiveDate = new Date(flightDate.getTime() - 90 * 60000);
-
-            // Format Time Function
-            const format = (date) => {
-                return date.toLocaleTimeString('en-GB', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
+                setResult({
+                    leaveTime: leaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    airportTime: airportTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
                 });
             };
 
-            // Update UI
-            document.getElementById('flightTimeDisplay').innerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-            document.getElementById('departureTimeDisplay').innerText = format(departureDate);
-            document.getElementById('checkInTimeDisplay').innerText = format(onePointFiveDate);
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-2">
+                        <button onClick={onBack} className="p-2 -ml-2 hover:bg-gray-100 rounded-full">
+                            <Icons.ArrowLeft />
+                        </button>
+                        <h2 className="text-xl font-bold text-gray-800">我要幾點出門？</h2>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-2 text-center">輸入起飛時間 (例如 1430)</label>
+                            <TimeInput value={flightTime} onChange={setFlightTime} placeholder="HHMM" colorClass="focus:border-blue-500" />
+                        </div>
+                        <Button onClick={calculateTime}>計算出門時間</Button>
+                        {result && (
+                            <div className="mt-6 bg-blue-50 p-6 rounded-xl border border-blue-100">
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center border-b border-blue-200 pb-3">
+                                        <span className="text-blue-600">預計抵達機場</span>
+                                        <span className="font-bold text-blue-900">{result.airportTime}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-blue-600 font-bold text-lg">建議出門時間</span>
+                                        <span className="font-bold text-3xl text-blue-600">{result.leaveTime}</span>
+                                    </div>
+                                    <p className="text-xs text-blue-400 text-center mt-2">
+                                        *已預留 1.5h車程 + 1h20m Check-in + 15m緩衝
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
 
-            resultDiv.classList.remove('hidden');
-            resultDiv.classList.add('fade-in');
-            
-            // Re-render icons for any new content (though not strictly needed here, good practice)
-            lucide.createIcons();
+        // --- 模式二：即時判斷 (保持不變) ---
+        const ModeCheckUrgency = ({ onBack }) => {
+            const [flightTime, setFlightTime] = useState('');
+            const [status, setStatus] = useState(null);
+
+            const checkStatus = () => {
+                if (!flightTime || flightTime.length < 3) return;
+                let timeStr = flightTime;
+                if (!timeStr.includes(':') && timeStr.length === 4) timeStr = timeStr.slice(0, 2) + ':' + timeStr.slice(2);
+
+                const now = new Date();
+                const [fHours, fMinutes] = timeStr.split(':').map(Number);
+                if (fHours > 23 || fMinutes > 59) { alert("時間錯咗喎"); return; }
+
+                let flightDate = new Date();
+                flightDate.setHours(fHours, fMinutes, 0, 0);
+                if (flightDate < now) flightDate.setDate(flightDate.getDate() + 1);
+
+                const diffMinutes = (flightDate - now) / 1000 / 60;
+                const requiredTime = 90 + 90; // 3 hours
+
+                if (diffMinutes >= requiredTime + 30) setStatus('safe');
+                else if (diffMinutes >= requiredTime) setStatus('warning');
+                else setStatus('danger');
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-2">
+                        <button onClick={onBack} className="p-2 -ml-2 hover:bg-gray-100 rounded-full">
+                            <Icons.ArrowLeft />
+                        </button>
+                        <h2 className="text-xl font-bold text-gray-800">現在出發來得及嗎？</h2>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-2 text-center">輸入起飛時間 (例如 0930)</label>
+                            <TimeInput value={flightTime} onChange={setFlightTime} placeholder="HHMM" colorClass="focus:border-emerald-500" />
+                        </div>
+                        <Button variant="secondary" onClick={checkStatus}>立即檢查</Button>
+                        {status && (
+                            <div className={`mt-6 p-6 rounded-xl border text-center ${status === 'safe' ? 'bg-green-50 border-green-200' : status === 'warning' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
+                                <div className="flex justify-center mb-3 text-gray-700">
+                                    {status === 'safe' && <Icons.CheckCircle />}
+                                    {status === 'warning' && <Icons.AlertTriangle />}
+                                    {status === 'danger' && <Icons.XCircle />}
+                                </div>
+                                <h3 className="text-xl font-bold mb-2">
+                                    {status === 'safe' ? '淡定，時間好夠。' : status === 'warning' ? '即刻飛的/上車剛剛好。' : '少過3個鐘，好大機會趕唔切！'}
+                                </h3>
+                                <p className="text-gray-600 text-sm mt-2">
+                                    {status === 'safe' && '現在出發絕對來得及。'}
+                                    {status === 'warning' && '得返 3 - 3.5 小時，唔好再拖啦。'}
+                                    {status === 'danger' && '車程 1.5hr + 預早 1.5hr 都唔夠做，請考慮改期。'}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 主程式 ---
+        function App() {
+            const [mode, setMode] = useState('home');
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4 font-sans">
+                    <Card>
+                        {mode === 'home' && (
+                            <div className="space-y-8 py-4">
+                                <div className="text-center space-y-2">
+                                    <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Icons.Plane />
+                                    </div>
+                                    <h1 className="text-2xl font-black text-gray-800">Airport Time</h1>
+                                    <p className="text-gray-500">請選擇你的需求</p>
+                                </div>
+                                <div className="space-y-4">
+                                    <button onClick={() => setMode('calc')} className="w-full bg-white border-2 border-blue-100 hover:border-blue-500 p-6 rounded-2xl flex items-center gap-4 transition-all group shadow-sm hover:shadow-md text-left active:scale-95">
+                                        <div className="bg-blue-50 p-3 rounded-full group-hover:bg-blue-500 transition-colors text-blue-500 group-hover:text-white">
+                                            <Icons.Clock />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-gray-800 text-lg">我要幾點出門？</h3>
+                                            <p className="text-sm text-gray-500">輸入起飛時間，回推建議出門時間</p>
+                                        </div>
+                                    </button>
+                                    <button onClick={() => setMode('check')} className="w-full bg-white border-2 border-emerald-100 hover:border-emerald-500 p-6 rounded-2xl flex items-center gap-4 transition-all group shadow-sm hover:shadow-md text-left active:scale-95">
+                                        <div className="bg-emerald-50 p-3 rounded-full group-hover:bg-emerald-500 transition-colors text-emerald-500 group-hover:text-white">
+                                            <Icons.AlertTriangle />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-gray-800 text-lg">現在出發來得及嗎？</h3>
+                                            <p className="text-sm text-gray-500">車程 1.5hr + 提前 1.5hr 到機場</p>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {mode === 'calc' && <ModeCalculateDeparture onBack={() => setMode('home')} />}
+                        {mode === 'check' && <ModeCheckUrgency onBack={() => setMode('home')} />}
+                    </Card>
+                </div>
+            );
         }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
